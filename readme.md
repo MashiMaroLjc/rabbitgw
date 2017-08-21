@@ -63,5 +63,5 @@ wgan.close_session()
 
 The result 
 
-![](image/1.jpg)
-![](image/2.jpg)
+![](/iamge/1.jpg)
+![](/iamge/2.jpg)
