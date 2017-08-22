@@ -179,17 +179,14 @@ class WGAN_TF:
         })
         return gen
 
-    def get_d_loss(self):
-        return self.d_loss
-
-    def get_g_loss(self):
-        return self.g_loss
-
-    def get_d_opt(self):
-        return self.d_opt
-
-    def get_g_opt(self):
-        return self.g_opt
+    def wrap(self,**kwargs):
+        self._build_loss_and_opt()
+        return {
+            "g_loss":self.g_loss,
+            "d_loss":self.d_loss,
+            "g_opt":self.g_opt,
+            "d_opt":self.d_opt
+        }
 
 
 class WGAN_GP_TF(WGAN_TF):
@@ -254,3 +251,9 @@ class WGAN_GP_TF(WGAN_TF):
     def fit(self,x,epoch,batch_size=32,visual=True,callbacks =None):
         self.batch_size =batch_size
         super().fit(x,epoch,batch_size,visual,callbacks)
+
+    def wrap(self,**kwargs):
+        batch_size = kwargs.get("batch_size",None)
+        if batch_size is None:
+            raise  ValueError("You should set the batch_size params")
+        return super().wrap(**kwargs)
