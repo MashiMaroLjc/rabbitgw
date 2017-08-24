@@ -4,11 +4,11 @@
 
 import random
 import numpy as np
-
+from ...configure import BACKEND
 
 class WGAN_TF:
 
-    def __init__(self,x_size,z_size,net_G,net_D,lr=5e-5,clip=0.01,d_loss_addition=0,g_loss_addition=0):
+    def __init__(self,x_size,z_size,net_G,net_D,lr=5e-5,clip=0.01,d_loss_addition=0,g_loss_addition=0,batch_size=32):
         """
 
         :param x_size: the size of every input sample.
@@ -21,8 +21,8 @@ class WGAN_TF:
         :param g_loss_addition:  a number of graph of tensorflow will add with loss function of g
 
         """
-        import tensorflow
-        self.tf = tensorflow
+
+        self.tf = BACKEND["tf"]
         self.z_size=  z_size
         self.lr = lr
         self.clip = clip
@@ -36,9 +36,10 @@ class WGAN_TF:
             self.fake_D = net_D(self.G)
         with self.tf.variable_scope("D",reuse=True):
             self.real_D = net_D(self.x)
-
+        self.batch_size = batch_size
         self.session = None
         self._netD =net_D
+        self._build_loss_and_opt()
 
 
     def _build_loss_and_opt(self):
@@ -100,7 +101,7 @@ class WGAN_TF:
     def _get_train_dlist(self):
         return [self.wd,self.d_loss,self.d_opt,self.d_clip]
 
-    def fit(self,x,epoch,batch_size=32,visual=True,callbacks =None):
+    def fit(self,x,epoch,visual=True,callbacks =None):
         """
 
         :param x: your input
@@ -110,7 +111,6 @@ class WGAN_TF:
         :param callbacks: a function list called after a epoch
         :return:
         """
-        self._build_loss_and_opt()
         dlist = self._get_train_dlist()
         if self.session is None:
             raise ValueError("session is None")
@@ -118,6 +118,7 @@ class WGAN_TF:
         def predict(n):
             return self.predict(n)
         length = len(x)
+        batch_size = self.batch_size
         for ep in range(epoch):
             random.shuffle(x)
             step = 0
@@ -179,14 +180,7 @@ class WGAN_TF:
         })
         return gen
 
-    def wrap(self,**kwargs):
-        self._build_loss_and_opt()
-        return {
-            "g_loss":self.g_loss,
-            "d_loss":self.d_loss,
-            "g_opt":self.g_opt,
-            "d_opt":self.d_opt
-        }
+
 
 
 class WGAN_GP_TF(WGAN_TF):
@@ -248,12 +242,4 @@ class WGAN_GP_TF(WGAN_TF):
     def _get_train_dlist(self):
         return [self.wd,self.d_loss,self.d_opt,self.tf.Variable(0)]
 
-    def fit(self,x,epoch,batch_size=32,visual=True,callbacks =None):
-        self.batch_size =batch_size
-        super().fit(x,epoch,batch_size,visual,callbacks)
 
-    def wrap(self,**kwargs):
-        batch_size = kwargs.get("batch_size",None)
-        if batch_size is None:
-            raise  ValueError("You should set the batch_size params")
-        return super().wrap(**kwargs)

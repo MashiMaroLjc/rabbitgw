@@ -5,7 +5,7 @@
 
 ## What can I benefit from it?
 
-The GAN(Generative Adversarial Networks) model is a great idea of deep learning.Howerver the process of training ,control the Generator as well as Discriminator but Discriminator always better than Generator so that the Gradient disappeared ,is so hard.Thus,people come up with some way to slove it.Among them,WGAN and WGAN-GP usually be better,which change the goal(loss function) what the model optimize.
+The GAN(Generative Adversarial Networks) model is a great idea of deep learning.Howerver the process of training ,control the Generator as well as Discriminator but Discriminator always better than Generator so that the gradient disappeared ,is so hard.Thus,people come up with some way to slove it.Among them,WGAN and WGAN-GP usually  better than others,which change the goal(loss function) what the model optimize.
 
 
 For the easy task,like generate image from the noise,you can use WGAN and WGAN-GP the *rabbitgw* implemented to obtain a acceptable and steady result directly.If you meet a complex task like dual learning,you can view *rabbitgw* as a wrapper,which save your time for bulid the loss function.You can get the loss function built by *rabbitgw*,then you can use it to solve your complex task.
@@ -18,6 +18,8 @@ For the easy task,like generate image from the noise,you can use WGAN and WGAN-G
 
 There are example using rabbitgw to train on minst
 
+And you should create the directory *model* and *image* if you plan to run the example code
+
 ```python
 # coding:utf-8
 
@@ -27,7 +29,8 @@ from PIL import Image
 
 # The WGAN_GP,WGAN wrapper in nn moudl 
 from rabbitgw.nn import WGAN_GP_TF
-# rabbitgw.util provide the tool you usually need,like the mlp(Multilayer perceptron) model or some process for the data.
+# rabbitgw.util provide the tool you usually need,like the mlp(Multilayer perceptron) model 
+# or some process for the data.
 from rabbitgw.util.net import mlp_tf
 from rabbitgw.util.process import inverse_standardlize,standardlize
 
@@ -39,12 +42,13 @@ mlp_g = mlp_tf(100,256,28*28,output_act_fun=tf.nn.sigmoid)
 wgan =  WGAN_GP_TF(x_size=28*28,z_size=100,net_G=mlp_g,net_D=mlp_d)
 
 # The callback function will be called after every epoch,it accept a dict.
-# include following key:
+# Include following key:
 # ep - the epoch number 
+# predict - a function as same as the *predict* method of model.
 # d_loss - the value of loss function of D net
 # g_loss - the value of loss function of G net
 # wd - W distance(only WGAN and WGAN-GP)
-# some key will be add in funture.
+# other key will be add in future.
 def my_callback(context):
     ep = context.get("ep")
     predict = context.get("predict")
@@ -61,7 +65,7 @@ wgan.close_session()
 
 ```
 
-The result 
+Result 
 
 ![](/iamge/1.jpg)
 ![](/iamge/2.jpg)
