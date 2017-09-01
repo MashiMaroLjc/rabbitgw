@@ -1,4 +1,4 @@
-#coding:utf-8
+# coding:utf-8
 
 # GANs model
 
@@ -6,9 +6,10 @@ import random
 import numpy as np
 from ...configure import BACKEND
 
-class WGAN_TF:
 
-    def __init__(self,x_size,z_size,net_G,net_D,lr=5e-5,clip=0.01,d_loss_addition=0,g_loss_addition=0,batch_size=32):
+class WGAN_TF:
+    def __init__(self, x_size, z_size, net_G, net_D, lr=5e-5, clip=0.01, d_loss_addition=0, g_loss_addition=0,
+                 batch_size=32):
         """
 
         :param x_size: the size of every input sample.
@@ -23,24 +24,60 @@ class WGAN_TF:
         """
 
         self.tf = BACKEND["tf"]
-        self.z_size=  z_size
-        self.lr = lr
-        self.clip = clip
-        self.d_loss_addition= d_loss_addition
-        self. g_loss_addition = g_loss_addition
-        self.x = self.tf.placeholder("float32", [None, x_size])
-        self.z = self.tf.placeholder("float32", [None, z_size])
+        self._z_size = z_size
+        self._lr = lr
+        self._clip = clip
+        self._d_loss_addition = d_loss_addition
+        self._g_loss_addition = g_loss_addition
+        self._x = self.tf.placeholder("float32", [None, x_size])
+        self._z = self.tf.placeholder("float32", [None, z_size])
         with self.tf.variable_scope("G"):
-            self.G = net_G(self.z)
+            self._G = net_G(self.z)
         with self.tf.variable_scope("D"):
-            self.fake_D = net_D(self.G)
-        with self.tf.variable_scope("D",reuse=True):
-            self.real_D = net_D(self.x)
-        self.batch_size = batch_size
-        self.session = None
-        self._netD =net_D
+            self._fake_D = net_D(self.G)
+        with self.tf.variable_scope("D", reuse=True):
+            self._real_D = net_D(self.x)
+        self._batch_size = batch_size
+        self._session = None
+        self._netG = net_G
+        self._netD = net_D
         self._build_loss_and_opt()
 
+    @property
+    def x(self):
+        return self._x
+
+    @property
+    def z(self):
+        return self._z
+
+    @property
+    def G(self):
+        return self._G
+
+    @property
+    def fake_D(self):
+        return self._fake_D
+
+    @property
+    def real_D(self):
+        return self._real_D
+
+    @property
+    def d_clip(self):
+        return self._d_clip
+
+    @property
+    def wd(self):
+        return self._wd
+
+    @property
+    def d_loss(self):
+        return self._d_loss
+
+    @property
+    def g_loss(self):
+        return self._g_loss
 
     def _build_loss_and_opt(self):
         vars = self.tf.trainable_variables()
@@ -48,60 +85,59 @@ class WGAN_TF:
         D_PARAMS = [var for var in vars if var.name.startswith("D")]
         G_PARAMS = [var for var in vars if var.name.startswith("G")]
 
-        d_clip = [self.tf.assign(var, self.tf.clip_by_value(var, -self.clip, self.clip)) for var in D_PARAMS]
-        self.d_clip = self.tf.group(*d_clip)
+        d_clip = [self.tf.assign(var, self.tf.clip_by_value(var, -self._clip, self._clip)) for var in D_PARAMS]
+        self._d_clip = self.tf.group(*d_clip)
 
-        self.wd = self.tf.reduce_mean(self.real_D) - self.tf.reduce_mean(self.fake_D)
-        self.d_loss = self.tf.reduce_mean(self.fake_D) - self.tf.reduce_mean(self.real_D)+ self.d_loss_addition
-        self.g_loss = self.tf.reduce_mean(-self.fake_D) + self.g_loss_addition
+        self._wd = self.tf.reduce_mean(self.real_D) - self.tf.reduce_mean(self.fake_D)
+        self._d_loss = self.tf.reduce_mean(self.fake_D) - self.tf.reduce_mean(self.real_D) + self._d_loss_addition
+        self._g_loss = self.tf.reduce_mean(-self.fake_D) + self._g_loss_addition
 
-        self.d_opt = self.tf.train.RMSPropOptimizer(self.lr).minimize(
+        self.d_opt = self.tf.train.RMSPropOptimizer(self._lr).minimize(
             self.d_loss,
             global_step=self.tf.Variable(0),
             var_list=D_PARAMS
         )
 
-        self.g_opt = self.tf.train.RMSPropOptimizer(self.lr).minimize(
+        self.g_opt = self.tf.train.RMSPropOptimizer(self._lr).minimize(
             self.g_loss,
             global_step=self.tf.Variable(0),
             var_list=G_PARAMS
         )
 
     def open_session(self):
-        if self.session is None:
-            self.session = self.tf.Session()
+        if self._session is None:
+            self._session = self.tf.Session()
 
-    def save_model(self,path):
+    def save_model(self, path):
         """
         save the model in your path
         :param path: your path
         :return:
         """
-        if self.session is None:
+        if self._session is None:
             raise ValueError("session is None")
         saver = self.tf.train.Saver()
-        saver.save(self.session, path)
+        saver.save(self._session, path)
 
-
-    def load_model(self,path):
+    def load_model(self, path):
         """
         load the model from your path
         :param path: your path
         :return:
         """
-        if self.session is None:
+        if self._session is None:
             raise ValueError("session is None")
         saver = self.tf.train.Saver()
-        saver.restore(self.session, path)
+        saver.restore(self._session, path)
 
     def close_session(self):
-        self.session.close()
-        self.session = None
+        self._session.close()
+        self._session = None
 
     def _get_train_dlist(self):
-        return [self.wd,self.d_loss,self.d_opt,self.d_clip]
+        return [self.wd, self.d_loss, self.d_opt, self.d_clip]
 
-    def fit(self,x,epoch,visual=True,callbacks =None):
+    def fit(self, x, epoch, visual=True, callbacks=None):
         """
 
         :param x: your input
@@ -112,80 +148,78 @@ class WGAN_TF:
         :return:
         """
         dlist = self._get_train_dlist()
-        if self.session is None:
+        if self._session is None:
             raise ValueError("session is None")
-        self.session.run(self.tf.global_variables_initializer())
+        self._session.run(self.tf.global_variables_initializer())
+
         def predict(n):
             return self.predict(n)
+
         length = len(x)
-        batch_size = self.batch_size
+        batch_size = self._batch_size
         for ep in range(epoch):
             random.shuffle(x)
             step = 0
             i = 0
-            j = i+batch_size
+            j = i + batch_size
             g_loss = np.inf
             d_loss = np.inf
             wd = np.inf
             while step < length:
                 for _ in range(5):
-                    noise = np.random.normal(size=(batch_size, self.z_size))
-                    if abs(j-i) < batch_size:
-                        i=i-(batch_size-(j-i))
-                    wd,d_loss,_,_ = self.session.run(dlist,feed_dict={
-                        self.x:x[i:j],
-                        self.z:noise
+                    noise = np.random.normal(size=(batch_size, self._z_size))
+                    if abs(j - i) < batch_size:
+                        i = i - (batch_size - (j - i))
+                    wd, d_loss, _, _ = self._session.run(dlist, feed_dict={
+                        self.x: x[i:j],
+                        self.z: noise
                     })
-                    i+=batch_size
-                    j+=batch_size
+                    i += batch_size
+                    j += batch_size
                     if j > length:
                         j = length
                     step += batch_size
                     if visual:
-                        print("\rep:%d/%d    %d/%d    d_loss:%.4f   g_loss:%.4f    wd:%.4f"%(
-                            ep+1,epoch,step,length,d_loss,g_loss,wd),end="")
+                        print("\rep:%d/%d    %d/%d    d_loss:%.4f   g_loss:%.4f    wd:%.4f" % (
+                            ep + 1, epoch, step, length, d_loss, g_loss, wd), end="")
                 for _ in range(1):
-                    noise = np.random.normal(size=(batch_size, self.z_size))
-                    g_loss,_ = self.session.run([self.g_loss,self.g_opt],feed_dict={
-                        self.z:noise
+                    noise = np.random.normal(size=(batch_size, self._z_size))
+                    g_loss, _ = self._session.run([self.g_loss, self.g_opt], feed_dict={
+                        self.z: noise
                     })
                     if visual:
                         print("\rep:%d/%d    %d/%d    d_loss:%.4f   g_loss:%.4f    wd:%.4f" % (
-                        ep + 1,epoch, step, length, d_loss, g_loss, wd), end="")
-            print()
+                            ep + 1, epoch, step, length, d_loss, g_loss, wd), end="")
+            if visual:
+                print()
             context = {
-                "predict":predict,
-                "ep":ep,
-                "g_loss":g_loss,
-                "wd":wd,
-                "d_loss":d_loss
+                "predict": predict,
+                "ep": ep,
+                "g_loss": g_loss,
+                "wd": wd,
+                "d_loss": d_loss
             }
             if callbacks is not None:
                 for callback in callbacks:
                     callback(context)
 
-
-
-    def predict(self,n):
+    def predict(self, n):
         """
         generate the sample with noise
         :param n: the number of sample.
         :return:
         """
-        if self.session is None:
+        if self._session is None:
             raise ValueError("session is None")
-        noise = np.random.normal(size=(n, self.z_size))
-        gen = self.session.run(self.G,feed_dict={
-            self.z:noise
+        noise = np.random.normal(size=(n, self._z_size))
+        gen = self._session.run(self.G, feed_dict={
+            self.z: noise
         })
         return gen
 
 
-
-
 class WGAN_GP_TF(WGAN_TF):
-
-    def __init__(self,x_size,z_size,net_G,net_D,lr=1e-4,d_loss_addition=0,g_loss_addition=0,LAMBDA=1,K=1):
+    def __init__(self, x_size, z_size, net_G, net_D, lr=1e-4, d_loss_addition=0, g_loss_addition=0, LAMBDA=1, K=1):
         """
 
         :param x_size:
@@ -198,10 +232,12 @@ class WGAN_GP_TF(WGAN_TF):
         :param LAMBDA:
         :param K:
         """
-        super(WGAN_GP_TF,self).__init__(x_size,z_size,net_G,net_D,lr=lr,
-                                        d_loss_addition=d_loss_addition,g_loss_addition=g_loss_addition,clip=None)
-        self.K = K
-        self.LAMBDA = LAMBDA
+        self._K = K
+        self._LAMBDA = LAMBDA
+        super(WGAN_GP_TF, self).__init__(x_size, z_size, net_G, net_D, lr=lr,
+                                         d_loss_addition=d_loss_addition, g_loss_addition=g_loss_addition, clip=np.inf)
+
+
 
     def _build_loss_and_opt(self):
         vars = self.tf.trainable_variables()
@@ -209,37 +245,71 @@ class WGAN_GP_TF(WGAN_TF):
         D_PARAMS = [var for var in vars if var.name.startswith("D")]
         G_PARAMS = [var for var in vars if var.name.startswith("G")]
 
-        self.wd = self.tf.reduce_mean(self.real_D) - self.tf.reduce_mean(self.fake_D)
-        self.d_loss = self.tf.reduce_mean(self.fake_D) - self.tf.reduce_mean(self.real_D) +self.d_loss_addition
-        self.g_loss = self.tf.reduce_mean(-self.fake_D) + self.g_loss_addition
-
+        self._wd = self.tf.reduce_mean(self.real_D) - self.tf.reduce_mean(self.fake_D)
+        self._d_loss = self.tf.reduce_mean(self.fake_D) - self.tf.reduce_mean(self.real_D) + self._d_loss_addition
+        self._g_loss = self.tf.reduce_mean(-self.fake_D) + self._g_loss_addition
 
         #######GP-METHOD
         alpha = self.tf.random_uniform(
-            shape=[self.batch_size, 1],
+            shape=[self._batch_size, 1],
             minval=0.,
             maxval=1.
-        )  # 采样
+        )  # sampling
         insert_value = self.G - alpha * (self.x - self.G)
         with self.tf.variable_scope("D", reuse=True):
             gradients = self.tf.gradients(self._netD(insert_value), [insert_value])[0]
-        slopes = self.tf.sqrt(self.tf.reduce_sum(self.tf.square(gradients), reduction_indices=[1]))  # 求范数
-        gradient_penalty = self.tf.reduce_mean((slopes -self.K) ** 2)  # 最少化这个会使梯度集中在K值附近
+        slopes = self.tf.sqrt(self.tf.reduce_sum(self.tf.square(gradients), reduction_indices=[1]))
+        gradient_penalty = self.tf.reduce_mean((slopes - self._K) ** 2)
         #######
-        self.d_loss += self.LAMBDA * gradient_penalty
-        self.d_opt = self.tf.train.AdamOptimizer(self.lr, beta1=0.4, beta2=0.9).minimize(
-            self.d_loss,
+        self._d_loss += self._LAMBDA * gradient_penalty
+        self.d_opt = self.tf.train.AdamOptimizer(self._lr, beta1=0.4, beta2=0.9).minimize(
+            self._d_loss,
             global_step=self.tf.Variable(0),
             var_list=D_PARAMS
         )
 
-        self.g_opt = self.tf.train.AdamOptimizer(self.lr, beta1=0.4, beta2=0.9).minimize(
-            self.g_loss,
+        self.g_opt = self.tf.train.AdamOptimizer(self._lr, beta1=0.4, beta2=0.9).minimize(
+            self._g_loss,
             global_step=self.tf.Variable(0),
             var_list=G_PARAMS
         )
 
     def _get_train_dlist(self):
-        return [self.wd,self.d_loss,self.d_opt,self.tf.Variable(0)]
+        return [self.wd, self.d_loss, self.d_opt, self.tf.Variable(0)]
 
 
+    @property
+    def x(self):
+        return self._x
+
+    @property
+    def z(self):
+        return self._z
+
+    @property
+    def G(self):
+        return self._G
+
+    @property
+    def fake_D(self):
+        return self._fake_D
+
+    @property
+    def real_D(self):
+        return self._real_D
+
+    @property
+    def d_clip(self):
+        return self._d_clip
+
+    @property
+    def wd(self):
+        return self._wd
+
+    @property
+    def d_loss(self):
+        return self._d_loss
+
+    @property
+    def g_loss(self):
+        return self._g_loss
