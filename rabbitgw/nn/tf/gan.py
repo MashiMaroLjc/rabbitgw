@@ -42,6 +42,7 @@ class WGAN_TF:
         self._netG = net_G
         self._netD = net_D
         self._build_loss_and_opt()
+        self._dlist = self._get_train_dlist()
 
     @property
     def x(self):
@@ -104,9 +105,15 @@ class WGAN_TF:
             var_list=G_PARAMS
         )
 
-    def open_session(self):
+    def open_session(self,path=None,is_restore=False):
+
         if self._session is None:
             self._session = self.tf.Session()
+        self._session.run(self.tf.global_variables_initializer())
+        if is_restore:
+            saver = self.tf.train.Saver()
+            saver.restore(self._session, path)
+
 
     def save_model(self, path):
         """
@@ -118,17 +125,6 @@ class WGAN_TF:
             raise ValueError("session is None")
         saver = self.tf.train.Saver()
         saver.save(self._session, path)
-
-    def load_model(self, path):
-        """
-        load the model from your path
-        :param path: your path
-        :return:
-        """
-        if self._session is None:
-            raise ValueError("session is None")
-        saver = self.tf.train.Saver()
-        saver.restore(self._session, path)
 
     def close_session(self):
         self._session.close()
@@ -147,10 +143,10 @@ class WGAN_TF:
         :param callbacks: a function list called after a epoch
         :return:
         """
-        dlist = self._get_train_dlist()
+
         if self._session is None:
             raise ValueError("session is None")
-        self._session.run(self.tf.global_variables_initializer())
+
 
         def predict(n):
             return self.predict(n)
@@ -158,7 +154,10 @@ class WGAN_TF:
         length = len(x)
         batch_size = self._batch_size
         for ep in range(epoch):
-            random.shuffle(x)
+            index = [_ for _ in range(length)] # will be repeated if shuffle x directly
+            random.shuffle(index)
+            train_image = [x[i] for i in index]
+            # random.shuffle(x)
             step = 0
             i = 0
             j = i + batch_size
@@ -170,15 +169,18 @@ class WGAN_TF:
                     noise = np.random.normal(size=(batch_size, self._z_size))
                     if abs(j - i) < batch_size:
                         i = i - (batch_size - (j - i))
-                    wd, d_loss, _, _ = self._session.run(dlist, feed_dict={
-                        self.x: x[i:j],
+                    wd, d_loss, _, _ = self._session.run(self._dlist, feed_dict={
+                        self.x: train_image[i:j],
                         self.z: noise
                     })
-                    i += batch_size
+                    i = j
                     j += batch_size
                     if j > length:
                         j = length
+
                     step += batch_size
+                    if i == length:
+                        break
                     if visual:
                         print("\rep:%d/%d    %d/%d    d_loss:%.4f   g_loss:%.4f    wd:%.4f" % (
                             ep + 1, epoch, step, length, d_loss, g_loss, wd), end="")
@@ -219,7 +221,7 @@ class WGAN_TF:
 
 
 class WGAN_GP_TF(WGAN_TF):
-    def __init__(self, x_size, z_size, net_G, net_D, lr=1e-4, d_loss_addition=0, g_loss_addition=0, LAMBDA=1, K=1):
+    def __init__(self, x_size, z_size, net_G, net_D, lr=1e-4, d_loss_addition=0, g_loss_addition=0,batch_size=32, LAMBDA=1, K=1):
         """
 
         :param x_size:
@@ -235,7 +237,9 @@ class WGAN_GP_TF(WGAN_TF):
         self._K = K
         self._LAMBDA = LAMBDA
         super(WGAN_GP_TF, self).__init__(x_size, z_size, net_G, net_D, lr=lr,
-                                         d_loss_addition=d_loss_addition, g_loss_addition=g_loss_addition, clip=np.inf)
+                                         d_loss_addition=d_loss_addition,
+                                         g_loss_addition=g_loss_addition, clip=np.inf,
+                                         batch_size=batch_size)
 
 
 
